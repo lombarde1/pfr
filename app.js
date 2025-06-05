@@ -36,7 +36,8 @@ app.use(express.urlencoded({ extended: true }));
 app.set('trust proxy', true);
 
 // Conexão com o MongoDB
-mongoose.connect(process.env.MONGODB_URI)
+console.log('mongodb://dbb:root@212.85.15.38:9002/?tls=false')
+mongoose.connect('mongodb://dbb:root@212.85.15.38:9002/?tls=false')
   .then(() => console.log('Conectado ao MongoDB'))
   .catch(err => console.error('Erro ao conectar ao MongoDB:', err));
 
