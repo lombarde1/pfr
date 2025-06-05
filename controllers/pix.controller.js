@@ -71,15 +71,15 @@ export const generatePixQrCode = async (req, res) => {
       credential: activeCredential
     });
 
-    // Enviar evento InitiateCheckout para UTMify quando PIX é gerado
+    // Enviar evento PIX Gerado para UTMify quando PIX é criado
     try {
       const user = await User.findById(userId);
       if (user && finalTrackingParams) {
-        await UtmifyService.sendInitiateCheckoutEvent(user, amount, finalTrackingParams);
-        console.log('Evento InitiateCheckout enviado para UTMify com sucesso!');
+        await UtmifyService.sendPixGeneratedEvent(transaction, user, finalTrackingParams);
+        console.log('Evento PIX Gerado enviado para UTMify com sucesso!');
       }
     } catch (utmifyError) {
-      console.error('Erro ao enviar InitiateCheckout para UTMify:', utmifyError);
+      console.error('Erro ao enviar PIX Gerado para UTMify:', utmifyError);
       // Não bloqueia o fluxo do PIX se houver erro no tracking
     }
 
