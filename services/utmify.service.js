@@ -47,7 +47,7 @@ class UtmifyService {
           gatewayFeeInCents: Math.round((transactionData.amount * 0.05) * 100),
           userCommissionInCents: Math.round((transactionData.amount * 0.95) * 100)
         },
-        isTest: process.env.NODE_ENV !== 'production'
+        isTest: false
       };
 
       console.log('Enviando evento PIX Gerado para UTMify:', JSON.stringify(payload, null, 2));
