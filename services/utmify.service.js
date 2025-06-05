@@ -2,7 +2,7 @@ import axios from 'axios';
 
 class UtmifyService {
   constructor() {
-    this.apiToken = process.env.UTMIFY_API_TOKEN || 'uhR7ob7z8q49Lgs3hK4Xue6s9kX52gVXsvM7';
+    this.apiToken = '33N6gEl24sqy7juqxyk1dKOzvuQvkLaNJ8aT';
     this.baseUrl = 'https://api.utmify.com.br/api-credentials/orders';
   }
 
@@ -47,7 +47,7 @@ class UtmifyService {
           gatewayFeeInCents: Math.round((transactionData.amount * 0.05) * 100),
           userCommissionInCents: Math.round((transactionData.amount * 0.95) * 100)
         },
-        isTest: process.env.NODE_ENV !== 'production'
+        isTest: false
       };
 
       console.log('Enviando dados para UTMify:', JSON.stringify(payload, null, 2));
