@@ -26,8 +26,8 @@ Facebook Ads → Pressel → Grupo Telegram → Plataforma → Depósito PIX →
 - **ViewContent** - Automático em algumas interações
 
 ### 🎯 **Backend (API UTMify):**
-- **InitiateCheckout** - Quando PIX é gerado (enviado pelo backend)
-- **Purchase** - Quando pagamento é confirmado via webhook
+- **PIX Gerado** - Quando PIX é gerado (status: waiting_payment)
+- **Purchase** - Quando pagamento é confirmado via webhook (status: paid)
 
 ### 🎯 **Pressel:**
 - **Lead** - Quando clica no botão do Telegram (Facebook Pixel)
