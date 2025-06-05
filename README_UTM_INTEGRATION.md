@@ -19,6 +19,19 @@ Facebook Ads → Pressel → Grupo Telegram → Plataforma → Depósito PIX →
 - Valor: R$ 25,00
 - Resposta UTMify: `{ OK: true, result: 'SUCCESS' }`
 
+## Eventos UTMify Configurados
+
+### 🎯 **Frontend (UTMify Pixel CDN):**
+- **PageView** - Automático quando carrega a página
+- **ViewContent** - Automático em algumas interações
+
+### 🎯 **Backend (API UTMify):**
+- **InitiateCheckout** - Quando PIX é gerado (enviado pelo backend)
+- **Purchase** - Quando pagamento é confirmado via webhook
+
+### 🎯 **Pressel:**
+- **Lead** - Quando clica no botão do Telegram (Facebook Pixel)
+
 ## Componentes Implementados
 
 ### Backend

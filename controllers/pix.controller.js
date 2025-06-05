@@ -71,6 +71,18 @@ export const generatePixQrCode = async (req, res) => {
       credential: activeCredential
     });
 
+    // Enviar evento InitiateCheckout para UTMify quando PIX é gerado
+    try {
+      const user = await User.findById(userId);
+      if (user && finalTrackingParams) {
+        await UtmifyService.sendInitiateCheckoutEvent(user, amount, finalTrackingParams);
+        console.log('Evento InitiateCheckout enviado para UTMify com sucesso!');
+      }
+    } catch (utmifyError) {
+      console.error('Erro ao enviar InitiateCheckout para UTMify:', utmifyError);
+      // Não bloqueia o fluxo do PIX se houver erro no tracking
+    }
+
     res.status(201).json({
       success: true,
       data: {
@@ -146,24 +158,107 @@ export const pixWebhook = async (req, res) => {
 
     await latestTransaction.save();
 
-    // INTEGRAÇÃO COM UTMIFY - Enviar evento de conversão
-    try {
-      if (latestTransaction.trackingParams) {
-        console.log('Enviando dados para UTMify:', latestTransaction.trackingParams);
+    // INTEGRAÇÃO COM UTMIFY - Com sistema de fallback robusto
+    let utmifySuccess = false;
+    let utmifyAttempts = 0;
+    const maxUtmifyAttempts = 3;
+
+    while (!utmifySuccess && utmifyAttempts < maxUtmifyAttempts) {
+      try {
+        utmifyAttempts++;
+        console.log(`Tentativa ${utmifyAttempts} de envio para UTMify`);
+
+        // Verificar se temos tracking params ou buscar fallback
+        let trackingParams = latestTransaction.trackingParams;
         
-        await UtmifyService.sendOrder(
+        if (!trackingParams || Object.keys(trackingParams).length === 0) {
+          console.log('Nenhum tracking param na transação, buscando por IP...');
+          
+          // FALLBACK 1: Buscar UTMs por IP do usuário se não tiver na transação
+          const clientIP = req.headers['x-forwarded-for']?.split(',')[0] || 
+                           req.connection.remoteAddress || 
+                           req.socket.remoteAddress ||
+                           req.ip;
+
+          if (clientIP) {
+            const utmData = await UtmTracking.findOne({ ip: clientIP });
+            if (utmData) {
+              trackingParams = {
+                utm_source: utmData.utm_source,
+                utm_medium: utmData.utm_medium,
+                utm_campaign: utmData.utm_campaign,
+                utm_content: utmData.utm_content,
+                utm_term: utmData.utm_term,
+                src: utmData.src,
+                sck: utmData.sck,
+                fbclid: utmData.fbclid,
+                gclid: utmData.gclid,
+                ip: clientIP,
+                user_agent: utmData.user_agent,
+                page_url: utmData.page_url,
+                referrer: utmData.referrer
+              };
+              console.log('UTMs encontrados por IP:', trackingParams);
+            }
+          }
+        }
+
+        // FALLBACK 2: UTMs mínimos se ainda não tiver dados
+        if (!trackingParams || Object.keys(trackingParams).length === 0) {
+          console.log('Criando tracking params padrão...');
+          trackingParams = {
+            utm_source: 'direct',
+            utm_medium: 'organic',
+            utm_campaign: 'peakbet_default',
+            ip: req.headers['x-forwarded-for']?.split(',')[0] || 'unknown',
+            user_agent: req.headers['user-agent'] || 'unknown',
+            page_url: 'https://peakbet.site',
+            referrer: 'direct'
+          };
+        }
+
+        console.log('Enviando dados para UTMify:', trackingParams);
+        
+        // Tentar enviar para UTMify com timeout
+        const utmifyPromise = UtmifyService.sendOrder(
           latestTransaction, 
           user, 
-          latestTransaction.trackingParams
+          trackingParams
         );
+
+        // Adicionar timeout de 10 segundos
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Timeout UTMify')), 10000);
+        });
+
+        await Promise.race([utmifyPromise, timeoutPromise]);
         
+        utmifySuccess = true;
         console.log('Evento enviado para UTMify com sucesso!');
-      } else {
-        console.log('Nenhum tracking param encontrado na transação');
+        
+        // Salvar que o tracking foi enviado com sucesso
+        latestTransaction.metadata.utmifySuccess = true;
+        latestTransaction.metadata.utmifyAttempts = utmifyAttempts;
+        await latestTransaction.save();
+        
+      } catch (utmifyError) {
+        console.error(`Erro na tentativa ${utmifyAttempts} para UTMify:`, utmifyError);
+        
+        // Se for a última tentativa, salvar o erro mas continuar processamento
+        if (utmifyAttempts >= maxUtmifyAttempts) {
+          console.error('Todas as tentativas de envio para UTMify falharam');
+          latestTransaction.metadata.utmifySuccess = false;
+          latestTransaction.metadata.utmifyError = utmifyError.message;
+          latestTransaction.metadata.utmifyAttempts = utmifyAttempts;
+          await latestTransaction.save();
+          
+          // FALLBACK 3: Agendar retry assíncrono (implementar se necessário)
+          // scheduleUtmifyRetry(latestTransaction._id, user, trackingParams);
+        } else {
+          // Aguardar 2 segundos antes da próxima tentativa
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
       }
-    } catch (utmifyError) {
-      console.error('Erro ao enviar dados para UTMify:', utmifyError);
-      // Continua o processamento mesmo se houver erro na UTMify
     }
 
     // Verificar se o saldo foi atualizado (para debug)
@@ -172,7 +267,8 @@ export const pixWebhook = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Pagamento processado com sucesso'
+      message: 'Pagamento processado com sucesso',
+      utmifyStatus: utmifySuccess ? 'sent' : 'failed'
     });
   } catch (error) {
     console.error('Erro ao processar webhook PIX:', error);
